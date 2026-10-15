@@ -1,0 +1,417 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CUBE RUNNER — Ink Escape</title>
+<style>
+*{box-sizing:border-box}
+:root{color-scheme:dark}
+body{margin:0;background:#080808;color:#fff;font-family:Arial,sans-serif;overflow:hidden;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+button{font:inherit;color:#fff;background:#111;border:1px solid #666;padding:12px 18px;cursor:pointer}
+button:active{background:#444;transform:scale(.96)}
+#hud{position:fixed;top:16px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;text-shadow:0 2px 5px #000}
+.logo{font-weight:1000;letter-spacing:4px;font-size:clamp(17px,4vw,28px)}
+.sub{font-size:10px;letter-spacing:3px;color:#aaa;margin-top:5px}
+.stats{text-align:right;font-size:11px;letter-spacing:2px;color:#aaa}
+.big{font-size:27px;font-weight:900;color:#fff;margin-top:4px}
+#menu,#over,#pause,#leaderboard{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(5px);padding:20px}
+.panel{width:min(440px,100%);border:1px solid #777;background:rgba(10,10,10,.94);padding:27px;box-shadow:0 0 0 5px #111,8px 8px 0 #444}
+h1{font-size:clamp(34px,9vw,57px);line-height:.95;letter-spacing:-2px;margin:0 0 12px;font-weight:1000}
+p{color:#aaa;line-height:1.55;font-size:13px}
+.line{height:1px;background:#444;margin:18px 0}
+.primary{width:100%;background:#fff;color:#000;font-weight:900;letter-spacing:2px;padding:16px;margin-top:8px}
+.secondary{width:100%;margin-top:8px}
+#name{width:100%;background:#050505;border:1px solid #555;color:white;padding:13px;margin:7px 0}
+.hidden{display:none!important}
+#controls{position:fixed;bottom:18px;left:0;right:0;display:flex;justify-content:space-between;padding:0 18px;pointer-events:none}
+.pad{display:flex;gap:9px;pointer-events:auto}
+.ctrl{width:61px;height:61px;border:1px solid #777;background:rgba(0,0,0,.6);font-size:24px;touch-action:none;user-select:none}
+#jump{width:85px;font-size:12px;font-weight:bold;letter-spacing:1px}
+#hint{position:fixed;bottom:93px;width:100%;text-align:center;color:#aaa;font-size:10px;letter-spacing:2px;pointer-events:none}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:9px 5px;border-bottom:1px solid #292929}
+td:last-child{text-align:right;font-weight:bold}
+tr:first-child{color:white}
+.you{color:#aaa}
+#flash{position:fixed;inset:0;pointer-events:none;background:white;opacity:0}
+@media(max-height:550px){#controls{bottom:8px}.ctrl{height:48px;width:52px}#hint{bottom:62px}.panel{padding:18px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="flash"></div>
+
+<div id="hud">
+  <div><div class="logo">CUBE RUNNER</div><div class="sub">INK ESCAPE / 001</div></div>
+  <div class="stats">DISTANCE<div class="big" id="score">000000</div><div style="margin-top:5px">BEST <span id="best">000000</span></div></div>
+</div>
+
+<div id="menu">
+ <div class="panel">
+  <div class="sub">A SKETCH SURVIVAL GAME</div>
+  <h1>RUN.<br>DON'T LOOK BACK.</h1>
+  <p>Ты разбудил нечто в пустом мире. Беги. Прыгай. Меняй направление. Не дай зверю настичь тебя.</p>
+  <div class="line"></div>
+  <label for="name" class="sub">ИМЯ БЕГУНА</label>
+  <input id="name" maxlength="16" placeholder="Введи никнейм" value="RUNNER">
+  <p>← → — движение · ПРОБЕЛ — прыжок<br>На телефоне используй экранные кнопки.</p>
+  <button class="primary" id="start">НАЧАТЬ ПОБЕГ ↗</button>
+  <button class="secondary" id="showRank">◇ ТАБЛИЦА РЕКОРДОВ</button>
+ </div>
+</div>
+
+<div id="over" class="hidden">
+ <div class="panel">
+  <div class="sub">SIGNAL LOST</div><h1>YOU FELL.</h1>
+  <p>Зверь оказался быстрее. Попробуй продержаться дольше.</p>
+  <div class="line"></div>
+  <div class="sub">ТВОЙ РЕЗУЛЬТАТ</div><div class="big" id="finalScore">0</div>
+  <p id="recordMessage">Каждый метр имеет значение.</p>
+  <button class="primary" id="again">ПОПРОБОВАТЬ СНОВА ↗</button>
+  <button class="secondary" id="toMenu">В ГЛАВНОЕ МЕНЮ</button>
+ </div>
+</div>
+
+<div id="pause" class="hidden">
+ <div class="panel"><div class="sub">TIME FROZEN</div><h1>ПАУЗА</h1>
+ <button class="primary" id="resume">ПРОДОЛЖИТЬ</button>
+ <button class="secondary" id="quit">ВЫЙТИ В МЕНЮ</button></div>
+</div>
+
+<div id="leaderboard" class="hidden">
+ <div class="panel"><div class="sub">GLOBAL DREAM / DEMO</div><h1 style="font-size:38px">TOP 15</h1>
+ <p>Демонстрационный рейтинг. Общий онлайн-рейтинг подключим позже.</p>
+ <table id="ranking"></table>
+ <button class="primary" id="closeRank">НАЗАД</button></div>
+</div>
+
+<div id="hint">← → MOVE &nbsp; / &nbsp; SPACE JUMP &nbsp; / &nbsp; ESC PAUSE</div>
+<div id="controls">
+ <div class="pad"><button class="ctrl" id="left">←</button><button class="ctrl" id="right">→</button></div>
+ <div class="pad"><button class="ctrl" id="jump">JUMP ↑</button></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=innerWidth,H=innerHeight,DPR=1;
+function resize(){
+ W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);
+ canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);
+ canvas.style.width=W+'px';canvas.style.height=H+'px';
+ ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize',resize);resize();
+
+const STORE='cubeRunnerSketchBest';
+let best=Number(localStorage.getItem(STORE)||0);
+let mode='menu',score=0,speed=0,elapsed=0,last=0,shake=0,flash=0;
+let lane=0,jumpY=0,jumpV=0,playerX=0,beast=0,spawn=0;
+let obstacles=[],particles=[],streaks=[];
+let playerName='RUNNER',newRecord=false;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rand=(a,b)=>a+Math.random()*(b-a);
+
+function line(x1,y1,x2,y2,width=1,alpha=.9){
+ ctx.globalAlpha=alpha;ctx.lineWidth=width;ctx.beginPath();
+ ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+}
+function roughLine(x1,y1,x2,y2,n=2,spread=1){
+ for(let i=0;i<n;i++){
+  let o=rand(-spread,spread);
+  line(x1+o,y1+o,x2+o,y2+o,rand(.45,1.2),rand(.25,.75));
+ }
+}
+function sketchPoly(points,detail=2){
+ ctx.beginPath();ctx.moveTo(points[0][0],points[0][1]);
+ for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0],points[i][1]);
+ ctx.closePath();ctx.stroke();
+ for(let i=0;i<detail;i++){
+  let off=rand(-1.4,1.4);
+  ctx.beginPath();ctx.moveTo(points[0][0]+off,points[0][1]+off);
+  for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0]+off,points[i][1]+off);
+  ctx.stroke();
+ }
+}
+function cube(x,y,w,h,depth,alpha=1){
+ ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle='#eee';ctx.lineJoin='round';
+ ctx.lineWidth=1;
+ const dx=depth*.48,dy=-depth*.32;
+ const front=[[x-w/2,y-h],[x+w/2,y-h],[x+w/2,y],[x-w/2,y]];
+ const top=[[x-w/2,y-h],[x-w/2+dx,y-h+dy],[x+w/2+dx,y-h+dy],[x+w/2,y-h]];
+ const side=[[x+w/2,y-h],[x+w/2+dx,y-h+dy],[x+w/2+dx,y+dy],[x+w/2,y]];
+ sketchPoly(front,2);sketchPoly(top,2);sketchPoly(side,2);
+ // Hand-drawn hatch marks
+ for(let i=0;i<Math.min(10,w/8);i++){
+  let xx=x-w/2+8+i*w/Math.min(10,w/8);
+  line(xx,y-h+4,xx-5,y-3,.55,.28);
+ }
+ for(let i=0;i<5;i++)line(x-w/2+5,y-h+(i+1)*h/6,x+w/2-5,y-h+(i+1)*h/6,.45,.14);
+ ctx.restore();
+}
+function project(l,z){
+ const horizon=H*.28;
+ const t=1/(1+Math.max(0,z)*.075);
+ const y=horizon+(H*.78-horizon)*t;
+ const spread=(W*.36)*t;
+ return {x:W/2+l*spread,y,t,scale:.18+.95*t};
+}
+function drawGround(){
+ const horizon=H*.28;
+ ctx.strokeStyle='#aaa';
+ // horizon and hand-sketched distant silhouettes
+ for(let i=0;i<4;i++){
+  let y=horizon+i*2;
+  line(0,y,W,y,.7,.12);
+ }
+ for(let i=0;i<20;i++){
+  let x=(i/19)*W;
+  let top=horizon-rand(2,H*.13);
+  roughLine(x,top,x+rand(-18,18),horizon,2,1.5);
+ }
+ // Perspective road lines
+ for(let l=-2;l<=2;l++){
+  let p=project(l*1.25,0);
+  line(W/2+l*W*.015,horizon,p.x,H*1.1,.7,.3);
+ }
+ // cross marks on ground
+ for(let z=1;z<55;z+=3){
+  let p=project(0,z);
+  let width=W*.36*p.t;
+  line(W/2-width,p.y,W/2+width,p.y,.7,.12+p.t*.25);
+ }
+}
+function drawSpeedLines(){
+ if(speed<8)return;
+ ctx.save();ctx.strokeStyle='#fff';
+ const power=clamp((speed-7)/15,0,1);
+ for(let i=0;i<32;i++){
+  const edge=Math.random()<.5;
+  let x=edge?rand(0,W*.25):rand(W*.75,W);
+  let y=rand(0,H);
+  let len=rand(12,100)*power;
+  line(x,y,x+(x<W/2?-len:len),y+rand(-12,12),rand(.4,1.4),rand(.12,.5)*power);
+ }
+ ctx.restore();
+}
+function drawRunner(x,y,s,phase){
+ ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+ ctx.strokeStyle='#fff';ctx.lineCap='round';ctx.lineJoin='round';
+ ctx.lineWidth=2.3;
+ // Tiny hand-drawn faceless character
+ const bob=Math.sin(phase)*2;
+ ctx.beginPath();ctx.ellipse(0,-47+bob,7,8,0,0,Math.PI*2);ctx.stroke();
+ // torso
+ roughLine(-1,-38+bob,1,-20+bob,3,1);
+ // arms swing
+ let swing=Math.sin(phase)*9;
+ roughLine(0,-34+bob,-9-swing,-25+bob,3,1);
+ roughLine(0,-33+bob,9+swing,-28+bob,3,1);
+ // legs running
+ roughLine(0,-20+bob,-7+Math.sin(phase)*8,-7,3,1);
+ roughLine(0,-20+bob,7-Math.sin(phase)*8,-4,3,1);
+ roughLine(-7+Math.sin(phase)*8,-7,-12+Math.sin(phase)*8,-6,2,1);
+ roughLine(7-Math.sin(phase)*8,-4,13-Math.sin(phase)*8,-3,2,1);
+ // little motion strokes
+ for(let i=0;i<3;i++)line(-13-i*4,-29+i*5,-19-i*4,-29+i*5,.8,.4);
+ ctx.restore();
+}
+function drawBeast(x,y,s,phase){
+ ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+ ctx.strokeStyle='#fff';ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=2;
+ // gigantic hunched monster, sketched from irregular strokes
+ roughLine(-47,-15,-51,-49,3,1.5);
+ roughLine(-51,-49,-35,-74,3,1.5);
+ roughLine(-35,-74,-10,-81,3,1.5);
+ roughLine(-10,-81,14,-66,3,1.5);
+ roughLine(14,-66,25,-39,3,1.5);
+ roughLine(-40,-54,-65,-70,3,1.5);
+ roughLine(-65,-70,-59,-48,3,1.5);
+ roughLine(10,-66,34,-83,3,1.5);
+ roughLine(34,-83,30,-57,3,1.5);
+ roughLine(-45,-44,-24,-30,4,1.5);
+ roughLine(-24,-30,8,-34,4,1.5);
+ roughLine(8,-34,25,-47,4,1.5);
+ roughLine(-40,-46,-34,-17,4,1.5);
+ roughLine(-34,-17,-45,-4,3,1.5);
+ roughLine(10,-37,18,-12,4,1.5);
+ roughLine(18,-12,34,-4,3,1.5);
+ roughLine(-25,-32,-9,-50,4,1.5);
+ roughLine(-9,-50,13,-47,4,1.5);
+ // claws
+ for(let i=0;i<3;i++){
+  roughLine(27+i*3,-5,30+i*3,rand(0,6),1.5,1);
+ }
+ // eyes
+ line(-12,-61,-7,-60,2,.95);line(6,-59,11,-58,2,.95);
+ // extra scribbled fur
+ for(let i=0;i<12;i++){
+  let xx=rand(-43,24),yy=rand(-70,-35);
+  line(xx,yy,xx+rand(-6,5),yy+rand(2,7),.9,.6);
+ }
+ ctx.restore();
+}
+function spawnObstacle(){
+ // Multiple patterns, with occasional safe lane
+ const count=Math.random()<.25?2:1;
+ let chosen=[-1,0,1].sort(()=>Math.random()-.5).slice(0,count);
+ chosen.forEach(l=>{
+  obstacles.push({lane:l,z:rand(36,44),height:rand(35,100),width:rand(.45,.75),depth:rand(18,27)});
+ });
+}
+function burst(x,y){
+ for(let i=0;i<28;i++)particles.push({
+  x,y,vx:rand(-190,190),vy:rand(-250,80),life:rand(.3,.9),max:.9
+ });
+}
+function reset(){
+ score=0;elapsed=0;speed=8;lane=0;playerX=0;jumpY=0;jumpV=0;
+ beast=0;spawn=1.5;shake=0;flash=0;newRecord=false;
+ obstacles=[];particles=[];streaks=[];
+ for(let z=12;z<48;z+=7)spawnObstacle();
+ $('score').textContent='000000';
+ $('best').textContent=String(best).padStart(6,'0');
+}
+function start(){
+ playerName=($('name').value.trim()||'RUNNER').slice(0,16);
+ $('menu').classList.add('hidden');$('over').classList.add('hidden');
+ $('pause').classList.add('hidden');$('leaderboard').classList.add('hidden');
+ reset();mode='playing';last=performance.now();
+}
+function endGame(){
+ mode='over';shake=14;flash=1;burst(W/2,H*.72);
+ const result=Math.floor(score);
+ newRecord=result>best;
+ if(newRecord){best=result;localStorage.setItem(STORE,String(best));}
+ $('finalScore').textContent=result.toLocaleString('ru-RU');
+ $('recordMessage').textContent=newRecord?'НОВЫЙ ЛИЧНЫЙ РЕКОРД!':'Личный рекорд: '+best.toLocaleString('ru-RU');
+ $('best').textContent=String(best).padStart(6,'0');
+ $('over').classList.remove('hidden');
+}
+function move(d){if(mode==='playing')lane=clamp(lane+d,-1,1)}
+function jump(){if(mode==='playing'&&jumpY<=0.1){jumpV=570}}
+addEventListener('keydown',e=>{
+ if(['ArrowLeft','ArrowRight','ArrowUp',' ','a','d','w'].includes(e.key))e.preventDefault();
+ if(e.key==='ArrowLeft'||e.key==='a')move(-1);
+ if(e.key==='ArrowRight'||e.key==='d')move(1);
+ if(e.key===' '||e.key==='ArrowUp'||e.key==='w')jump();
+ if(e.key==='Escape'){
+  if(mode==='playing'){mode='paused';$('pause').classList.remove('hidden')}
+  else if(mode==='paused'){mode='playing';$('pause').classList.add('hidden');last=performance.now()}
+ }
+});
+function bindHold(id,fn){
+ const el=$(id);
+ el.addEventListener('pointerdown',e=>{e.preventDefault();fn()});
+}
+bindHold('left',()=>move(-1));bindHold('right',()=>move(1));bindHold('jump',jump);
+$('start').onclick=start;$('again').onclick=start;
+$('toMenu').onclick=()=>{mode='menu';$('over').classList.add('hidden');$('menu').classList.remove('hidden')};
+$('resume').onclick=()=>{mode='playing';$('pause').classList.add('hidden');last=performance.now()};
+$('quit').onclick=()=>{mode='menu';$('pause').classList.add('hidden');$('menu').classList.remove('hidden')};
+$('showRank').onclick=showRank;$('closeRank').onclick=()=>{$('leaderboard').classList.add('hidden');if(mode==='menu')$('menu').classList.remove('hidden')};
+function showRank(){
+ $('menu').classList.add('hidden');
+ let entries=[];
+ try{entries=JSON.parse(localStorage.getItem('cubeRunnerScores')||'[]')}catch{}
+ entries.push({name:playerName||$('name').value||'RUNNER',score:best});
+ entries.sort((a,b)=>b.score-a.score);
+ // Fill the visual demo leaderboard with placeholder runners
+ const demo=[
+  ['INK_GHOST',12840],['VOID_13',10950],['NO_SIGNAL',9740],
+  ['DARKRUN',8620],['SKETCH_X',7450],['RUNNER_09',6810],
+  ['BLACKOUT',5970],['CUBEFOX',5120],['ECHO',4380],
+  ['NIGHT_404',3620],['ZERO',2980],['PAPER_SOUL',2210],
+  ['LOSTINK',1640],['ASH',930],['NEW_RUNNER',500]
+ ];
+ const actual=best>0?{name:playerName||'RUNNER',score:best}:null;
+ let rows=demo.map((r,i)=>({name:r[0],score:r[1],demo:true}));
+ if(actual){rows=rows.filter(r=>r.name!==actual.name);rows.push(actual)}
+ rows.sort((a,b)=>b.score-a.score);
+ $('ranking').innerHTML=rows.slice(0,15).map((r,i)=>
+ `<tr class="${actual&&r.name===actual.name?'you':''}"><td>${String(i+1).padStart(2,'0')}</td><td>${escapeHtml(r.name)}${r.demo?'':' ◇'}</td><td>${r.score.toLocaleString('ru-RU')}</td></tr>`
+ ).join('');
+ $('leaderboard').classList.remove('hidden');
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+function update(dt){
+ if(mode==='playing'){
+  elapsed+=dt;speed=Math.min(23,8+elapsed*.20);
+  score+=speed*dt*10;
+  $('score').textContent=String(Math.floor(score)).padStart(6,'0');
+  playerX+=(lane-playerX)*Math.min(1,dt*11);
+  jumpY+=jumpV*dt;jumpV-=1450*dt;
+  if(jumpY<0){jumpY=0;jumpV=0}
+  spawn-=dt;
+  if(spawn<=0){spawnObstacle();spawn=rand(.65,1.15)*Math.max(.45,1-speed/40)}
+  for(const o of obstacles)o.z-=speed*dt;
+  obstacles=obstacles.filter(o=>o.z>-4);
+  for(const o of obstacles){
+   if(o.z<2.3&&o.z>0&&Math.abs(o.lane-playerX)<o.width*.8){
+    if(jumpY<o.height*.85){endGame();break}
+   }
+  }
+  beast=Math.min(1,beast+dt*.035);
+  shake=Math.max(0,shake-dt*20);flash=Math.max(0,flash-dt*2.4);
+ }
+ particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;p.life-=dt});
+ particles=particles.filter(p=>p.life>0);
+}
+function render(now){
+ const dt=Math.min(.035,(now-last)/1000||0);last=now;
+ update(dt);
+ ctx.setTransform(DPR,0,0,DPR,0,0);
+ ctx.fillStyle='#080808';ctx.fillRect(0,0,W,H);
+ ctx.save();
+ if(shake)ctx.translate(rand(-shake,shake),rand(-shake,shake));
+ drawGround();
+ // Objects far away first
+ const sorted=[...obstacles].sort((a,b)=>b.z-a.z);
+ for(const o of sorted){
+  if(o.z<0||o.z>55)continue;
+  const p=project(o.lane,o.z),s=p.scale;
+  cube(p.x,p.y,s*W*.13,s*o.height,s*W*.08,clamp(1-o.z/65,.18,1));
+ }
+ const px=W/2+playerX*W*.22;
+ const base=H*.79-jumpY;
+ // Shadow
+ ctx.strokeStyle='#aaa';ctx.beginPath();
+ ctx.ellipse(px,H*.79,20+Math.max(0,jumpY)*.025,4,0,0,Math.PI*2);ctx.stroke();
+ // Monster looming behind runner
+ const beastScale=1.1+Math.sin(elapsed*8)*.025+beast*.2;
+ drawBeast(W/2-playerX*W*.06,H*.69,beastScale,elapsed*8);
+ drawRunner(px,base,clamp(W/520,.65,1.2),elapsed*speed*1.2);
+ drawSpeedLines();
+ ctx.restore();
+ // Particles
+ ctx.strokeStyle='#fff';
+ particles.forEach(p=>{
+  ctx.globalAlpha=clamp(p.life/p.max,0,1);
+  line(p.x,p.y,p.x-p.vx*.035,p.y-p.vy*.035,1.5,.8);
+ });
+ ctx.globalAlpha=1;
+ if(flash>0){$('flash').style.opacity=String(flash*.5)}
+ else $('flash').style.opacity='0';
+ // Title-screen atmosphere
+ if(mode==='menu'){
+  ctx.save();ctx.strokeStyle='#fff';
+  for(let i=0;i<9;i++){
+   const x=W*(i+1)/10;
+   line(x,H*.45,x+rand(-15,15),H*.85,.7,.16);
+  }
+  ctx.restore();
+ }
+ requestAnimationFrame(render);
+}
+reset();requestAnimationFrame(t=>{last=t;render(t)});
+})();
+</script>
+</body>
+</html>
